@@ -124,6 +124,17 @@ export const api = {
       csrfToken,
     });
   },
+  pasteXml(workFolderId, fileName, xmlContent, csrfToken) {
+    const formData = new FormData();
+    formData.append('fileName', fileName);
+    formData.append('xmlContent', xmlContent);
+
+    return request(`/api/work-folders/${workFolderId}/paste-xml`, {
+      method: 'POST',
+      csrfToken,
+      formData,
+    });
+  },
   listUsers() {
     return request('/api/admin/users');
   },

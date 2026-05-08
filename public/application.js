@@ -43,6 +43,7 @@ const state = {
   sidebarWidth: readStoredSidebarWidth(),
   sidebarCollapsed: readStoredSidebarCollapsed(),
   selectedFileIds: new Set(),
+  showXmlPasteModal: false,
 };
 
 function escapeHtml(value) {
@@ -680,6 +681,11 @@ function renderDashboardView() {
                 Upload files
               </button>
             </form>
+            <div class="form-stack">
+              <button type="button" class="button button--ghost" data-action="show-xml-paste-modal" ${disabledAttr(!state.selectedWorkFolderId)}>
+                Paste XML content
+              </button>
+            </div>
             ${renderFileList()}
           </section>
 
@@ -737,7 +743,39 @@ function renderDashboardView() {
 
       ${state.showAdmin ? renderAdminModal() : ''}
       ${state.showPasswordModal ? renderPasswordModal() : ''}
+      ${state.showXmlPasteModal ? renderXmlPasteModal() : ''}
       ${renderBusyOverlay()}
+    </div>
+  `;
+}
+
+function renderXmlPasteModal() {
+  return `
+    <div class="modal-backdrop">
+      <div class="modal modal--large">
+        <div class="modal-header">
+          <div>
+            <h2>Paste XML content</h2>
+            <p>Paste your XML content below (maximum 1MB). The content will be saved as a new file in your selected work folder.</p>
+          </div>
+          <button type="button" class="button button--ghost" data-action="close-xml-paste-modal">Close</button>
+        </div>
+        <form class="form-stack" data-form="xml-paste">
+          <label class="field">
+            <span>File name</span>
+            <input name="fileName" type="text" placeholder="Enter file name (e.g., project.xml)" required pattern="^[^\\\\/:*?\"<>|]+\\.xml$" title="Please enter a valid XML file name ending with .xml" />
+          </label>
+          <label class="field">
+            <span>XML content</span>
+            <textarea name="xmlContent" rows="20" placeholder="Paste your XML content here..." required maxlength="1048576"></textarea>
+            <small>Maximum size: 1MB (1,048,576 characters)</small>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="button button--ghost" data-action="close-xml-paste-modal">Cancel</button>
+            <button type="submit" class="button button--primary">Save XML file</button>
+          </div>
+        </form>
+      </div>
     </div>
   `;
 }
@@ -1111,6 +1149,18 @@ appRoot.addEventListener('click', (event) => {
     return;
   }
 
+  if (action === 'show-xml-paste-modal') {
+    state.showXmlPasteModal = true;
+    renderApp();
+    return;
+  }
+
+  if (action === 'close-xml-paste-modal') {
+    state.showXmlPasteModal = false;
+    renderApp();
+    return;
+  }
+
   if (action === 'toggle-theme') {
     toggleTheme();
     return;
@@ -1469,6 +1519,33 @@ appRoot.addEventListener('submit', (event) => {
       applyFilesPayload(payload, true);
       form.reset();
       setFlash('success', `Uploaded ${files.length} file${files.length === 1 ? '' : 's'}.`);
+    });
+    return;
+  }
+
+  if (formType === 'xml-paste') {
+    const fileName = formData.get('fileName').trim();
+    const xmlContent = formData.get('xmlContent').trim();
+
+    if (!fileName || !xmlContent) {
+      setFlash('error', 'Please provide both a file name and XML content.');
+      renderApp();
+      return;
+    }
+
+    // Client-side size validation
+    if (Buffer.byteLength(xmlContent, 'utf8') > 1048576) {
+      setFlash('error', 'XML content exceeds maximum size of 1MB.');
+      renderApp();
+      return;
+    }
+
+    runAction('Saving XML file…', async () => {
+      const payload = await api.pasteXml(state.selectedWorkFolderId, fileName, xmlContent, state.csrfToken);
+      applyFilesPayload(payload, true);
+      state.showXmlPasteModal = false;
+      form.reset();
+      setFlash('success', `Saved ${fileName} successfully.`);
     });
     return;
   }

@@ -515,6 +515,53 @@ app.post('/api/work-folders/:workFolderId/upload', requireAuth, requirePasswordC
   res.status(201).json(buildFilesPayload(refreshedFolder));
 });
 
+app.post('/api/work-folders/:workFolderId/paste-xml', requireAuth, requirePasswordChangeClearance, requireCsrf, (req, res) => {
+  const folder = getFolderOrSend404(req, res);
+
+  if (!folder) {
+    return;
+  }
+
+  const { fileName, xmlContent } = req.body;
+
+  if (!fileName || !xmlContent) {
+    res.status(400).json({ error: 'Both file name and XML content are required.' });
+    return;
+  }
+
+  // Validate file name
+  if (!fileName.endsWith('.xml') || fileName.includes('/') || fileName.includes('\\')) {
+    res.status(400).json({ error: 'Invalid file name. Must end with .xml and contain no path separators.' });
+    return;
+  }
+
+  // Check content size (1MB limit)
+  if (Buffer.byteLength(xmlContent, 'utf8') > 1048576) {
+    res.status(413).json({ error: 'XML content exceeds maximum size of 1MB.' });
+    return;
+  }
+
+  // Check if file already exists
+  const existingFiles = getFilesForWorkFolder(folder.id);
+  const existingFile = existingFiles.find(file => file.originalName === fileName);
+  if (existingFile) {
+    res.status(409).json({ error: 'A file with that name already exists in this folder.' });
+    return;
+  }
+
+  // Validate XML content (basic check)
+  if (!xmlContent.trim().startsWith('<') || !xmlContent.trim().endsWith('>')) {
+    res.status(400).json({ error: 'Invalid XML content. Content must be valid XML.' });
+    return;
+  }
+
+  // Save the file
+  saveFileContent(folder.id, fileName, Buffer.from(xmlContent, 'utf8'));
+
+  const refreshedFolder = getWorkFolderByIdForUser(folder.id, req.auth.user.id);
+  res.status(201).json(buildFilesPayload(refreshedFolder));
+});
+
 app.delete('/api/work-folders/:workFolderId', requireAuth, requirePasswordChangeClearance, requireCsrf, (req, res) => {
   const folder = getFolderOrSend404(req, res);
 
