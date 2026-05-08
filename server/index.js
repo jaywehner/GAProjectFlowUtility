@@ -515,7 +515,7 @@ app.post('/api/work-folders/:workFolderId/upload', requireAuth, requirePasswordC
   res.status(201).json(buildFilesPayload(refreshedFolder));
 });
 
-app.post('/api/work-folders/:workFolderId/paste-xml', requireAuth, requirePasswordChangeClearance, requireCsrf, (req, res) => {
+app.post('/api/work-folders/:workFolderId/paste-xml', requireAuth, requirePasswordChangeClearance, requireCsrf, upload.none(), (req, res) => {
   const folder = getFolderOrSend404(req, res);
 
   if (!folder) {
