@@ -1,0 +1,25 @@
+{
+  "name": "ga-project-flow-utility",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GoAnywhere MFT project flow visualizer with secure authentication and SQLite storage.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.10",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.8.1",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.0",
+    "sanitize-filename": "^1.6.3"
+  }
+}

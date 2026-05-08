@@ -1,0 +1,11 @@
+<project name="Sub Project 1" mainModule="Main" version="2.0" logLevel="verbose">
+
+	<module name="Main">
+
+		<print version="1.0">
+			<![CDATA[Sub Project 1]]>
+		</print>
+
+	</module>
+
+</project>

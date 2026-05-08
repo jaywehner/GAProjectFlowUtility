@@ -1,0 +1,42 @@
+<project name="ProjectMain" mainModule="Main" version="2.0" logLevel="verbose">
+
+	<module name="Main" description="Sample project just testing projects and modules">
+
+		<createWorkspace version="1.0" />
+
+
+		<callModule label="(M) Function One" module="Function One" version="1.0" />
+
+
+		<callProject label="(P) Project 1" project="/Admin/Jay/Sub Project 1" version="1.0" />
+
+
+		<callModule label="(M) Function Two" module="Function Two" version="1.0" />
+
+
+		<callProject label="(P) Project 2" project="/Admin/Jay/Sub Project 2" version="1.0" />
+
+
+		<deleteWorkspace version="1.0" />
+
+	</module>
+
+
+	<module name="Function One">
+
+		<print version="1.0">
+			<![CDATA[Function 1]]>
+		</print>
+
+	</module>
+
+
+	<module name="Function Two">
+
+		<print version="1.0">
+			<![CDATA[Function 2]]>
+		</print>
+
+	</module>
+
+</project>
