@@ -77,8 +77,11 @@ app.use(helmet({
       baseUri: ["'self'"],
       formAction: ["'self'"],
       frameAncestors: ["'none'"],
+      upgradeInsecureRequests: null,
     },
   },
+  crossOriginOpenerPolicy: false,
+  originAgentCluster: false,
   referrerPolicy: { policy: 'no-referrer' },
 }));
 app.use(cookieParser());
