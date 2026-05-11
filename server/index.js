@@ -536,13 +536,14 @@ app.post('/api/work-folders/:workFolderId/paste-xml', requireAuth, requirePasswo
   }
 
   // Check content size (1MB limit)
-  if (Buffer.byteLength(xmlContent, 'utf8') > 1048576) {
+  const contentSize = Buffer.byteLength(xmlContent, 'utf8');
+  if (contentSize > 1048576) {
     res.status(413).json({ error: 'XML content exceeds maximum size of 1MB.' });
     return;
   }
 
   // Check if file already exists
-  const existingFiles = getFilesForWorkFolder(folder.id);
+  const existingFiles = listFilesForFolder(folder.id);
   const existingFile = existingFiles.find(file => file.originalName === fileName);
   if (existingFile) {
     res.status(409).json({ error: 'A file with that name already exists in this folder.' });
@@ -550,7 +551,8 @@ app.post('/api/work-folders/:workFolderId/paste-xml', requireAuth, requirePasswo
   }
 
   // Validate XML content (basic check)
-  if (!xmlContent.trim().startsWith('<') || !xmlContent.trim().endsWith('>')) {
+  const trimmedContent = xmlContent.trim();
+  if (!trimmedContent.startsWith('<') || !trimmedContent.endsWith('>')) {
     res.status(400).json({ error: 'Invalid XML content. Content must be valid XML.' });
     return;
   }
@@ -684,6 +686,25 @@ app.use((error, req, res, next) => {
   next();
 });
 
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 3000;
+
+const server = app.listen(PORT, () => {
   console.log(`GA Project Flow Utility is running at http://localhost:${PORT}`);
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });

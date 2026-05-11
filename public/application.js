@@ -763,7 +763,7 @@ function renderXmlPasteModal() {
         <form class="form-stack" data-form="xml-paste">
           <label class="field">
             <span>File name</span>
-            <input name="fileName" type="text" placeholder="Enter file name (e.g., project.xml)" required pattern="^[^\\\\/:*?\"<>|]+\\.xml$" title="Please enter a valid XML file name ending with .xml" />
+            <input name="fileName" type="text" placeholder="Enter file name (e.g., project.xml)" required pattern=".*\.xml$" title="Please enter a valid XML file name ending with .xml" />
           </label>
           <label class="field">
             <span>XML content</span>
@@ -1344,9 +1344,9 @@ appRoot.addEventListener('click', (event) => {
 
     runAction('Deleting files…', async () => {
       for (const file of selectedFiles) {
-        await api.deleteFile(state.selectedWorkFolderId, file.id);
+        await api.deleteFile(state.selectedWorkFolderId, file.id, state.csrfToken);
       }
-      await refreshFolderFiles();
+      await refreshFiles(state.selectedWorkFolderId, { autoProcess: false });
       deselectAllFiles();
       setFlash('success', `Deleted ${selectedFiles.length} file(s).`);
       renderApp();
@@ -1534,7 +1534,9 @@ appRoot.addEventListener('submit', (event) => {
     }
 
     // Client-side size validation
-    if (Buffer.byteLength(xmlContent, 'utf8') > 1048576) {
+    const encoder = new TextEncoder();
+    const byteLength = encoder.encode(xmlContent).length;
+    if (byteLength > 1048576) {
       setFlash('error', 'XML content exceeds maximum size of 1MB.');
       renderApp();
       return;
