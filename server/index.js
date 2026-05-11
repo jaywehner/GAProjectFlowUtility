@@ -686,8 +686,6 @@ app.use((error, req, res, next) => {
   next();
 });
 
-const PORT = process.env.PORT || 3000;
-
 const server = app.listen(PORT, () => {
   console.log(`GA Project Flow Utility is running at http://localhost:${PORT}`);
 });
