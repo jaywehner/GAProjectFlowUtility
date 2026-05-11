@@ -39,6 +39,8 @@ The first login requires an immediate password change.
    docker-compose up -d
    ```
 
+   Open `http://localhost:3300`.
+
 2. View logs:
    ```bash
    docker-compose logs -f
@@ -60,10 +62,12 @@ The first login requires an immediate password change.
    ```bash
    docker run -d \
      --name ga-project-flow \
-     -p 3000:3000 \
+     -p 3300:3000 \
      -v $(pwd)/data:/app/data \
      ga-project-flow
    ```
+
+   Open `http://localhost:3300`.
 
 3. View logs:
    ```bash
@@ -77,7 +81,7 @@ The first login requires an immediate password change.
 
 ## Docker Configuration
 
-- **Port**: The application runs on port 3000
+- **Port**: The application runs on container port 3000 and is exposed on host port 3300 by the provided Docker Compose file
 - **Data persistence**: The `data/` directory is mounted as a volume to persist:
   - SQLite database (`data/app.db`)
   - Uploaded XML files (`data/uploads/`)

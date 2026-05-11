@@ -4,16 +4,16 @@ services:
   ga-project-flow:
     build: .
     ports:
-      - "3300:3300"
+      - "3300:3000"
     volumes:
       - ./data:/app/data
     environment:
       - NODE_ENV=production
-      - PORT=3300
+      - PORT=3000
     restart: unless-stopped
     stop_grace_period: 10s
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3300', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 3

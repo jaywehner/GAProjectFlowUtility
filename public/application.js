@@ -763,7 +763,7 @@ function renderXmlPasteModal() {
         <form class="form-stack" data-form="xml-paste">
           <label class="field">
             <span>File name</span>
-            <input name="fileName" type="text" placeholder="Enter file name (e.g., project.xml)" required pattern=".*\.xml$" title="Please enter a valid XML file name ending with .xml" />
+            <input name="fileName" type="text" placeholder="Enter file name (e.g., project.xml)" required title="Please enter a valid XML file name ending with .xml" />
           </label>
           <label class="field">
             <span>XML content</span>
