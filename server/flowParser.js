@@ -333,9 +333,10 @@ function createGraphBuilder(fileMap, options = {}) {
 
   function processProject(fileName, sourceNodeId, sourceLabel, options = {}) {
     const projectState = loadProject(fileName);
+    const replacementFileName = fileReplacements.get(normalizeFileNameKey(fileName));
     const mainModuleName = projectState.missing ? 'Main' : (projectState.parsed.mainModuleName || 'Main');
 
-    if (!options.isRoot && !projectState.missing) {
+    if (!options.isRoot && !projectState.missing && !replacementFileName) {
       const moduleNode = ensureModuleNode(projectState.parsed.fileName, mainModuleName);
 
       if (sourceNodeId) {

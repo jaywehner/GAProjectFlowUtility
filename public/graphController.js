@@ -975,6 +975,9 @@ class GraphController {
     this.svgElement.addEventListener('wheel', this.wheelHandler, { passive: false });
     this.svgElement.addEventListener('pointerdown', this.pointerDownHandler);
     this.svgElement.addEventListener('change', this.changeHandler);
+    this.container.querySelectorAll('[data-action="replace-missing-select"]').forEach((replacementSelect) => {
+      replacementSelect.addEventListener('change', this.changeHandler);
+    });
   }
 }
 
