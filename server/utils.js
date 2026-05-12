@@ -58,6 +58,10 @@ function isXmlFileName(fileName) {
   return /\.xml$/i.test(safeTrim(fileName));
 }
 
+function isZipFileName(fileName) {
+  return /\.zip$/i.test(safeTrim(fileName));
+}
+
 function toBoolean(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
 }
@@ -69,5 +73,6 @@ module.exports = {
   validateUsername,
   validateFolderName,
   isXmlFileName,
+  isZipFileName,
   toBoolean,
 };

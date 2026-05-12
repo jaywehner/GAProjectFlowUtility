@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const multer = require('multer');
 const rateLimit = require('express-rate-limit');
+const yauzl = require('yauzl');
 const { initDatabase } = require('./database');
 const {
   PORT,
@@ -18,6 +19,7 @@ const {
   validateUsername,
   validateFolderName,
   isXmlFileName,
+  isZipFileName,
   toBoolean,
 } = require('./utils');
 const {
@@ -47,7 +49,9 @@ const {
   findWorkFolderByName,
   createWorkFolder,
   listFilesForFolder,
+  getFileByIdForFolder,
   saveFileContent,
+  readFileContent,
   deleteFileByIdForFolder,
   deleteWorkFolderByIdForUser,
   migrateStoredFilesToEncrypted,
@@ -110,14 +114,109 @@ const upload = multer({
     files: MAX_FILES_PER_UPLOAD,
   },
   fileFilter: (req, file, callback) => {
-    if (!isXmlFileName(file.originalname)) {
-      callback(new Error(`Only XML files are allowed: ${file.originalname}`));
+    if (!isXmlFileName(file.originalname) && !isZipFileName(file.originalname)) {
+      callback(new Error(`Only XML and ZIP files are allowed: ${file.originalname}`));
       return;
     }
 
     callback(null, true);
   },
 });
+
+function isUnsafeZipEntryName(entryName) {
+  const normalized = String(entryName || '').replace(/\\/g, '/');
+  return normalized.startsWith('/')
+    || /^[A-Za-z]:/.test(normalized)
+    || normalized.split('/').some((segment) => segment === '..');
+}
+
+function zipEntryBaseName(entryName) {
+  return path.posix.basename(String(entryName || '').replace(/\\/g, '/'));
+}
+
+function readZipEntry(zipFile, entry) {
+  return new Promise((resolve, reject) => {
+    zipFile.openReadStream(entry, (streamError, readStream) => {
+      if (streamError) {
+        reject(streamError);
+        return;
+      }
+
+      const chunks = [];
+      let totalSize = 0;
+
+      readStream.on('data', (chunk) => {
+        totalSize += chunk.length;
+
+        if (totalSize > MAX_FILE_SIZE_BYTES) {
+          readStream.destroy(new Error(`Extracted file exceeds maximum size: ${entry.fileName}`));
+          return;
+        }
+
+        chunks.push(chunk);
+      });
+      readStream.on('error', reject);
+      readStream.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+  });
+}
+
+function openZipBuffer(buffer) {
+  return new Promise((resolve, reject) => {
+    yauzl.fromBuffer(buffer, { lazyEntries: true }, (error, zipFile) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(zipFile);
+    });
+  });
+}
+
+async function extractXmlFilesFromZip(file) {
+  const zipFile = await openZipBuffer(file.buffer);
+  const extractedFiles = [];
+
+  return new Promise((resolve, reject) => {
+    zipFile.on('error', reject);
+    zipFile.on('end', () => resolve(extractedFiles));
+    zipFile.on('entry', async (entry) => {
+      try {
+        const entryName = String(entry.fileName || '');
+
+        if (isUnsafeZipEntryName(entryName)) {
+          throw new Error(`ZIP file contains an unsafe path: ${entryName}`);
+        }
+
+        if (/\/$/.test(entryName) || !isXmlFileName(entryName)) {
+          zipFile.readEntry();
+          return;
+        }
+
+        if (entry.uncompressedSize > MAX_FILE_SIZE_BYTES) {
+          throw new Error(`Extracted XML file exceeds maximum size: ${entryName}`);
+        }
+
+        const originalName = zipEntryBaseName(entryName);
+
+        if (!originalName || !isXmlFileName(originalName)) {
+          zipFile.readEntry();
+          return;
+        }
+
+        const content = await readZipEntry(zipFile, entry);
+        extractedFiles.push({ originalName, content });
+        zipFile.readEntry();
+      } catch (error) {
+        zipFile.close();
+        reject(error);
+      }
+    });
+
+    zipFile.readEntry();
+  });
+}
 
 function serializeUser(user) {
   if (!user) {
@@ -498,7 +597,7 @@ app.get('/api/work-folders/:workFolderId/files', requireAuth, requirePasswordCha
   res.json(buildFilesPayload(folder));
 });
 
-app.post('/api/work-folders/:workFolderId/upload', requireAuth, requirePasswordChangeClearance, requireCsrf, upload.array('files', MAX_FILES_PER_UPLOAD), (req, res) => {
+app.post('/api/work-folders/:workFolderId/upload', requireAuth, requirePasswordChangeClearance, requireCsrf, upload.array('files', MAX_FILES_PER_UPLOAD), async (req, res, next) => {
   const folder = getFolderOrSend404(req, res);
 
   if (!folder) {
@@ -506,16 +605,39 @@ app.post('/api/work-folders/:workFolderId/upload', requireAuth, requirePasswordC
   }
 
   if (!Array.isArray(req.files) || req.files.length === 0) {
-    res.status(400).json({ error: 'Please select at least one XML file to upload.' });
+    res.status(400).json({ error: 'Please select at least one XML or ZIP file to upload.' });
     return;
   }
 
-  for (const file of req.files) {
-    saveFileContent(folder.id, file.originalname, file.buffer);
-  }
+  try {
+    let savedFileCount = 0;
 
-  const refreshedFolder = getWorkFolderByIdForUser(folder.id, req.auth.user.id);
-  res.status(201).json(buildFilesPayload(refreshedFolder));
+    for (const file of req.files) {
+      if (isZipFileName(file.originalname)) {
+        const extractedFiles = await extractXmlFilesFromZip(file);
+
+        for (const extractedFile of extractedFiles) {
+          saveFileContent(folder.id, extractedFile.originalName, extractedFile.content);
+          savedFileCount += 1;
+        }
+
+        continue;
+      }
+
+      saveFileContent(folder.id, file.originalname, file.buffer);
+      savedFileCount += 1;
+    }
+
+    if (savedFileCount === 0) {
+      res.status(400).json({ error: 'No XML files were found to upload.' });
+      return;
+    }
+
+    const refreshedFolder = getWorkFolderByIdForUser(folder.id, req.auth.user.id);
+    res.status(201).json(buildFilesPayload(refreshedFolder));
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post('/api/work-folders/:workFolderId/paste-xml', requireAuth, requirePasswordChangeClearance, requireCsrf, upload.none(), (req, res) => {
@@ -562,6 +684,39 @@ app.post('/api/work-folders/:workFolderId/paste-xml', requireAuth, requirePasswo
 
   // Save the file
   saveFileContent(folder.id, fileName, Buffer.from(xmlContent, 'utf8'));
+
+  const refreshedFolder = getWorkFolderByIdForUser(folder.id, req.auth.user.id);
+  res.status(201).json(buildFilesPayload(refreshedFolder));
+});
+
+app.post('/api/work-folders/:workFolderId/replace-missing', requireAuth, requirePasswordChangeClearance, requireCsrf, (req, res) => {
+  const folder = getFolderOrSend404(req, res);
+
+  if (!folder) {
+    return;
+  }
+
+  const missingFileName = safeTrim(req.body.missingFileName);
+  const sourceFileId = Number(req.body.sourceFileId);
+
+  if (!isXmlFileName(missingFileName)) {
+    res.status(400).json({ error: 'Missing file name must end with .xml.' });
+    return;
+  }
+
+  if (!Number.isInteger(sourceFileId) || sourceFileId <= 0) {
+    res.status(400).json({ error: 'Select an uploaded XML file to use as the replacement.' });
+    return;
+  }
+
+  const sourceFile = getFileByIdForFolder(sourceFileId, folder.id);
+
+  if (!sourceFile) {
+    res.status(404).json({ error: 'Selected replacement file was not found in this work folder.' });
+    return;
+  }
+
+  saveFileContent(folder.id, missingFileName, Buffer.from(readFileContent(sourceFile), 'utf8'));
 
   const refreshedFolder = getWorkFolderByIdForUser(folder.id, req.auth.user.id);
   res.status(201).json(buildFilesPayload(refreshedFolder));

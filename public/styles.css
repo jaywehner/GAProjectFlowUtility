@@ -891,6 +891,7 @@ button:disabled {
 .graph-node-card__subtitle,
 .graph-node-card__body {
   margin: 0;
+  line-height: 1.45;
 }
 
 .graph-node-card__type,
@@ -915,6 +916,34 @@ button:disabled {
 
 .graph-node-card__body {
   line-height: 1.45;
+}
+
+.graph-node-card__actions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.graph-node-card__actions select,
+.graph-node-card__actions button {
+  min-height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 0.35rem 0.55rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  pointer-events: auto;
+}
+
+.graph-node-card__actions button {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.graph-node-card__actions button:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .graph-empty,

@@ -20,6 +20,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
     "multer": "^2.0.0",
-    "sanitize-filename": "^1.6.3"
+    "sanitize-filename": "^1.6.3",
+    "yauzl": "^3.3.0"
   }
 }

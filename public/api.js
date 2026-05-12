@@ -111,6 +111,23 @@ export const api = {
       formData,
     });
   },
+  uploadReplacementFile(workFolderId, file, targetFileName, csrfToken) {
+    const formData = new FormData();
+    formData.append('files', file, targetFileName);
+
+    return request(`/api/work-folders/${workFolderId}/upload`, {
+      method: 'POST',
+      csrfToken,
+      formData,
+    });
+  },
+  replaceMissingFile(workFolderId, missingFileName, sourceFileId, csrfToken) {
+    return request(`/api/work-folders/${workFolderId}/replace-missing`, {
+      method: 'POST',
+      csrfToken,
+      body: { missingFileName, sourceFileId },
+    });
+  },
   processProjects(workFolderId, startProjectFileName, csrfToken) {
     return request(`/api/work-folders/${workFolderId}/process`, {
       method: 'POST',

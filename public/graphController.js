@@ -1,7 +1,7 @@
 import { downloadBlob, svgToPdfBlob, svgToPngBlob } from './exportUtils.js';
 
 const CARD_WIDTH = 272;
-const CARD_HEIGHT = 156;
+const CARD_HEIGHT = 214;
 const GRAPH_PADDING = 120;
 const FIT_PADDING = 56;
 const INITIAL_FIT_MIN_ZOOM = 0.6;
@@ -374,6 +374,23 @@ function buildNodeCardMarkup(node, options = {}) {
     classes.push('graph-node-card--matched');
   }
 
+  const uploadedFiles = Array.isArray(options.files) ? options.files : [];
+  const replacementOptions = uploadedFiles.length
+    ? uploadedFiles.map((file) => `<option value="${escapeHtml(String(file.id))}">${escapeHtml(file.originalName)}</option>`).join('')
+    : '<option value="">No uploaded files available</option>';
+  const missingFileName = node.type === 'project' ? node.title : node.subtitle;
+  const missingControls = node.status === 'missing'
+    ? `
+      <div class="graph-node-card__actions" data-graph-control="true">
+        <select data-action="replace-missing-select" data-missing-file-name="${escapeHtml(missingFileName)}" ${uploadedFiles.length ? '' : 'disabled'}>
+          <option value="">Use uploaded file…</option>
+          ${replacementOptions}
+        </select>
+        <button type="button" data-action="upload-missing-file" data-missing-file-name="${escapeHtml(missingFileName)}">Upload replacement</button>
+      </div>
+    `
+    : '';
+
   return `
     <div xmlns="http://www.w3.org/1999/xhtml" class="${classes.join(' ')}" data-node-id="${escapeHtml(node.id)}">
       <div class="graph-node-card__header">
@@ -383,6 +400,7 @@ function buildNodeCardMarkup(node, options = {}) {
       <h3>${escapeHtml(node.title)}</h3>
       <p class="graph-node-card__subtitle">${escapeHtml(node.subtitle)}</p>
       <p class="graph-node-card__body">${escapeHtml(node.body)}</p>
+      ${missingControls}
     </div>
   `;
 }
@@ -520,12 +538,16 @@ class GraphController {
     this.searchTerm = options.searchTerm || '';
     this.filterOnly = Boolean(options.filterOnly);
     this.viewport = options.viewport || null;
+    this.files = Array.isArray(options.files) ? options.files : [];
     this.onNodePositionChange = options.onNodePositionChange || (() => {});
     this.onViewportChange = options.onViewportChange || (() => {});
+    this.onMissingFileSelect = options.onMissingFileSelect || (() => {});
+    this.onMissingFileUpload = options.onMissingFileUpload || (() => {});
     this.hasFitted = false;
     this.dragState = null;
     this.pointerMoveHandler = this.handlePointerMove.bind(this);
     this.pointerUpHandler = this.handlePointerUp.bind(this);
+    this.changeHandler = this.handleChange.bind(this);
     this.wheelHandler = this.handleWheel.bind(this);
     this.pointerDownHandler = this.handlePointerDown.bind(this);
     this.resizeObserver = new ResizeObserver(() => {
@@ -551,6 +573,7 @@ class GraphController {
     if (this.svgElement) {
       this.svgElement.removeEventListener('wheel', this.wheelHandler);
       this.svgElement.removeEventListener('pointerdown', this.pointerDownHandler);
+      this.svgElement.removeEventListener('change', this.changeHandler);
     }
 
     if (this.resizeObserver) {
@@ -705,8 +728,37 @@ class GraphController {
     this.zoomAt(factor, event.clientX, event.clientY);
   }
 
+  handleChange(event) {
+    const replacementSelect = event.target.closest('[data-action="replace-missing-select"]');
+
+    if (!replacementSelect || !replacementSelect.value) {
+      return;
+    }
+
+    this.onMissingFileSelect({
+      missingFileName: replacementSelect.getAttribute('data-missing-file-name'),
+      sourceFileId: replacementSelect.value,
+    });
+    replacementSelect.value = '';
+  }
+
   handlePointerDown(event) {
     if (!this.svgElement) {
+      return;
+    }
+
+    const controlTarget = event.target.closest('[data-graph-control="true"]');
+
+    if (controlTarget) {
+      const uploadButton = event.target.closest('[data-action="upload-missing-file"]');
+
+      if (uploadButton) {
+        this.onMissingFileUpload({
+          missingFileName: uploadButton.getAttribute('data-missing-file-name'),
+        });
+      }
+
+      event.stopPropagation();
       return;
     }
 
@@ -900,7 +952,7 @@ class GraphController {
       return `
         <g class="graph-node ${matched ? 'is-matched' : ''} ${dimmed ? 'is-dimmed' : ''}" data-node-id="${escapeHtml(node.id)}">
           <foreignObject x="${node.position.x}" y="${node.position.y}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" data-node-id="${escapeHtml(node.id)}">
-            ${buildNodeCardMarkup(node, { matched, dimmed })}
+            ${buildNodeCardMarkup(node, { matched, dimmed, files: this.files })}
           </foreignObject>
           ${inputPortMarkup}
           ${outputPortMarkup}
@@ -922,6 +974,7 @@ class GraphController {
     this.svgElement = this.container.querySelector('.graph-svg');
     this.svgElement.addEventListener('wheel', this.wheelHandler, { passive: false });
     this.svgElement.addEventListener('pointerdown', this.pointerDownHandler);
+    this.svgElement.addEventListener('change', this.changeHandler);
   }
 }
 

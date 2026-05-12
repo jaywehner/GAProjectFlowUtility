@@ -668,14 +668,14 @@ function renderDashboardView() {
           <section class="panel sidebar-section">
             <div class="panel-header">
               <div>
-                <h2>Upload XML files</h2>
-                <p>All uploads are stored encrypted at rest.</p>
+                <h2>Upload XML or ZIP files</h2>
+                <p>ZIP uploads are extracted into the selected work folder. All uploads are stored encrypted at rest.</p>
               </div>
             </div>
             <form class="form-stack" data-form="upload-files">
               <label class="field">
-                <span>Select XML files</span>
-                <input name="files" type="file" accept=".xml,text/xml" multiple ${disabledAttr(!state.selectedWorkFolderId)} />
+                <span>Select XML or ZIP files</span>
+                <input name="files" type="file" accept=".xml,.zip,text/xml,application/zip" multiple ${disabledAttr(!state.selectedWorkFolderId)} />
               </label>
               <button type="submit" class="button button--primary" ${disabledAttr(!state.selectedWorkFolderId)}>
                 Upload files
@@ -946,11 +946,18 @@ function mountCurrentGraph() {
     searchTerm: state.graphSearchTerm,
     filterOnly: state.graphFilterOnly,
     viewport: state.graphViewport,
+    files: state.files,
     onNodePositionChange(nodeId, position) {
       updateGraphNodePosition(nodeId, position);
     },
     onViewportChange(viewport) {
       updateGraphViewport(viewport);
+    },
+    onMissingFileSelect({ missingFileName, sourceFileId }) {
+      replaceMissingFileWithUploaded(missingFileName, sourceFileId);
+    },
+    onMissingFileUpload({ missingFileName }) {
+      uploadMissingFileReplacement(missingFileName);
     },
   });
 }
@@ -1079,8 +1086,51 @@ async function processCurrentProject(showSuccessMessage = true) {
   }
 }
 
+async function replaceMissingFileWithUploaded(missingFileName, sourceFileId) {
+  if (!state.selectedWorkFolderId || !missingFileName || !sourceFileId) {
+    setFlash('error', 'Choose an uploaded file to replace the missing file.');
+    renderApp();
+    return;
+  }
+
+  runAction(`Replacing ${missingFileName}…`, async () => {
+    const payload = await api.replaceMissingFile(state.selectedWorkFolderId, missingFileName, sourceFileId, state.csrfToken);
+    applyFilesPayload(payload, false);
+    await processCurrentProject(false);
+    setFlash('success', `Replaced ${missingFileName}.`);
+  });
+}
+
+function uploadMissingFileReplacement(missingFileName) {
+  if (!state.selectedWorkFolderId || !missingFileName) {
+    setFlash('error', 'Choose a work folder before uploading a replacement.');
+    renderApp();
+    return;
+  }
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xml,text/xml';
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    runAction(`Uploading ${missingFileName}…`, async () => {
+      const payload = await api.uploadReplacementFile(state.selectedWorkFolderId, file, missingFileName, state.csrfToken);
+      applyFilesPayload(payload, false);
+      await processCurrentProject(false);
+      setFlash('success', `Uploaded replacement for ${missingFileName}.`);
+    });
+  }, { once: true });
+  input.click();
+}
+
 async function exportGraph(actionName, baseName) {
   if (!graphController) {
+    setFlash('error', 'Process a project before exporting the graph.');
     return;
   }
 
@@ -1509,12 +1559,12 @@ appRoot.addEventListener('submit', (event) => {
     const files = Array.from(form.querySelector('input[name="files"]')?.files || []);
 
     if (!files.length) {
-      setFlash('error', 'Please select one or more XML files to upload.');
+      setFlash('error', 'Please select one or more XML or ZIP files to upload.');
       renderApp();
       return;
     }
 
-    runAction('Uploading XML files…', async () => {
+    runAction('Uploading files…', async () => {
       const payload = await api.uploadFiles(state.selectedWorkFolderId, files, state.csrfToken);
       applyFilesPayload(payload, true);
       form.reset();
