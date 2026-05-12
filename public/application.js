@@ -3,8 +3,11 @@ import { mountGraph, getGraphMetrics } from './graphController.js';
 import {
   applySavedGraphLayout,
   clearGraphLayout,
+  clearSavedGraphState,
+  getSavedFileReplacements,
   getSavedGraphLayout,
   saveGraphNodePosition,
+  saveFileReplacements,
   saveGraphViewport,
 } from './graphPersistence.js';
 
@@ -240,6 +243,7 @@ function resetWorkspaceState() {
   state.selectedWorkFolderId = null;
   state.files = [];
   state.selectedStartProjectFileName = '';
+  state.fileReplacements = {};
   state.graph = null;
   state.graphSearchTerm = '';
   state.graphFilterOnly = false;
@@ -321,6 +325,42 @@ function getSelectedWorkFolder() {
 
 function getSelectedStartFile() {
   return state.files.find((file) => file.originalName === state.selectedStartProjectFileName) || null;
+}
+
+function sanitizeFileReplacementsForFiles(fileReplacements, files = state.files) {
+  if (!fileReplacements || typeof fileReplacements !== 'object' || Array.isArray(fileReplacements)) {
+    return {};
+  }
+
+  const availableFileNames = new Set((Array.isArray(files) ? files : [])
+    .map((file) => String(file.originalName || '').trim())
+    .filter(Boolean));
+
+  return Object.fromEntries(Object.entries(fileReplacements)
+    .map(([missingFileName, replacementFileName]) => [String(missingFileName || '').trim(), String(replacementFileName || '').trim()])
+    .filter(([missingFileName, replacementFileName]) => missingFileName && replacementFileName && availableFileNames.has(replacementFileName)));
+}
+
+function loadSavedFileReplacementsForCurrentContext() {
+  if (!state.selectedStartProjectFileName) {
+    state.fileReplacements = {};
+    return;
+  }
+
+  const nextFileReplacements = sanitizeFileReplacementsForFiles(getSavedFileReplacements(getGraphContext()), state.files);
+  state.fileReplacements = nextFileReplacements;
+  saveFileReplacements(getGraphContext(), nextFileReplacements);
+}
+
+function persistCurrentFileReplacements() {
+  state.fileReplacements = sanitizeFileReplacementsForFiles(state.fileReplacements, state.files);
+
+  if (!state.selectedStartProjectFileName) {
+    state.fileReplacements = {};
+    return;
+  }
+
+  saveFileReplacements(getGraphContext(), state.fileReplacements);
 }
 
 function applyStoredGraphState(graph) {
@@ -577,24 +617,22 @@ function renderGraphToolbar() {
 
   return `
     <div class="graph-toolbar">
-      <div class="graph-toolbar__section graph-toolbar__search">
-        <label class="field field--search">
-          <span>Search graph</span>
-          <input id="graph-search-input" type="text" value="${escapeHtml(state.graphSearchTerm)}" placeholder="Search nodes, status, or text" ${disabledAttr(!canUseGraphActions)} />
-        </label>
-        <label class="checkbox-row checkbox-row--compact">
-          <input id="graph-filter-only" type="checkbox" ${checkedAttr(state.graphFilterOnly)} ${disabledAttr(!canUseGraphActions)} />
-          <span>Show matches only</span>
-        </label>
-      </div>
-      <div class="graph-toolbar__section graph-toolbar__zoom">
+      <label class="graph-toolbar__searchbar">
+        <span>Search graph</span>
+        <input id="graph-search-input" type="text" value="${escapeHtml(state.graphSearchTerm)}" placeholder="Search nodes, status, or text" aria-label="Search graph" ${disabledAttr(!canUseGraphActions)} />
+      </label>
+      <label class="graph-toolbar__toggle">
+        <input id="graph-filter-only" type="checkbox" ${checkedAttr(state.graphFilterOnly)} ${disabledAttr(!canUseGraphActions)} />
+        <span>Show matches only</span>
+      </label>
+      <div class="graph-toolbar__group">
         <span class="pill pill--muted">Zoom ${escapeHtml(zoomPercent)}</span>
         <button type="button" class="button button--ghost button--small" data-action="graph-zoom-out" ${disabledAttr(!canUseGraphActions)} aria-label="Zoom out">−</button>
         <button type="button" class="button button--ghost button--small" data-action="graph-zoom-in" ${disabledAttr(!canUseGraphActions)} aria-label="Zoom in">+</button>
         <button type="button" class="button button--ghost button--small" data-action="graph-fit-view" ${disabledAttr(!canUseGraphActions)}>Fit view</button>
         <button type="button" class="button button--ghost button--small" data-action="graph-reset-layout" ${disabledAttr(!canUseGraphActions)}>Reset layout</button>
       </div>
-      <div class="graph-toolbar__section graph-toolbar__export">
+      <div class="graph-toolbar__group graph-toolbar__group--export">
         <button type="button" class="button button--ghost button--small" data-action="graph-export-svg" data-export-name="${escapeHtml(fileNameBase)}" ${disabledAttr(!canUseGraphActions)}>Export SVG</button>
         <button type="button" class="button button--ghost button--small" data-action="graph-export-png" data-export-name="${escapeHtml(fileNameBase)}" ${disabledAttr(!canUseGraphActions)}>Export PNG</button>
         <button type="button" class="button button--ghost button--small" data-action="graph-export-pdf" data-export-name="${escapeHtml(fileNameBase)}" ${disabledAttr(!canUseGraphActions)}>Export PDF</button>
@@ -663,34 +701,15 @@ function renderDashboardView() {
             <div class="panel-header">
               <div>
                 <h2>Work folders</h2>
-                <p>Create a folder, then upload related project files into it.</p>
+                <p>Choose a folder, upload XML or ZIP files, and manage the files in one place.</p>
               </div>
-              <button type="button" class="button button--ghost button--danger button--small" data-action="delete-folder" ${disabledAttr(!state.selectedWorkFolderId)}>
-                Delete folder
-              </button>
             </div>
-            <form class="inline-form" data-form="create-folder">
-              <label class="field field--grow">
-                <span>New folder name</span>
-                <input name="folderName" type="text" maxlength="60" required />
-              </label>
-              <button type="submit" class="button button--primary">Create</button>
-            </form>
             <label class="field">
               <span>Selected work folder</span>
               <select id="work-folder-select" ${disabledAttr(!state.workFolders.length)}>
                 ${renderWorkFolderOptions()}
               </select>
             </label>
-          </section>
-
-          <section class="panel sidebar-section">
-            <div class="panel-header">
-              <div>
-                <h2>Upload XML or ZIP files</h2>
-                <p>ZIP uploads are extracted into the selected work folder. All uploads are stored encrypted at rest.</p>
-              </div>
-            </div>
             <form class="form-stack" data-form="upload-files">
               <label class="field">
                 <span>Select XML or ZIP files</span>
@@ -701,11 +720,23 @@ function renderDashboardView() {
               </button>
             </form>
             <div class="form-stack">
-              <button type="button" class="button button--ghost" data-action="show-xml-paste-modal" ${disabledAttr(!state.selectedWorkFolderId)}>
+              <button type="button" class="button button--ghost button--block" data-action="show-xml-paste-modal" ${disabledAttr(!state.selectedWorkFolderId)}>
                 Paste XML content
               </button>
             </div>
             ${renderFileList()}
+            <div class="sidebar-section__footer">
+              <form class="form-stack" data-form="create-folder">
+                <label class="field">
+                  <span>New folder name</span>
+                  <input name="folderName" type="text" maxlength="60" required />
+                </label>
+                <button type="submit" class="button button--primary button--block">Create folder</button>
+              </form>
+              <button type="button" class="button button--ghost button--danger button--block" data-action="delete-folder" ${disabledAttr(!state.selectedWorkFolderId)}>
+                Delete folder
+              </button>
+            </div>
           </section>
         </aside>
 
@@ -1024,11 +1055,12 @@ function applyFilesPayload(payload, clearGraph = true) {
   state.files = nextFiles;
 
   const fileNames = new Set(nextFiles.map((file) => file.originalName));
-  state.fileReplacements = Object.fromEntries(Object.entries(state.fileReplacements).filter(([, replacementFileName]) => fileNames.has(replacementFileName)));
 
   if (!fileNames.has(state.selectedStartProjectFileName)) {
     state.selectedStartProjectFileName = payload.defaultStartProjectFileName || nextFiles[0]?.originalName || '';
   }
+
+   loadSavedFileReplacementsForCurrentContext();
 
   if (clearGraph) {
     destroyGraphController();
@@ -1063,6 +1095,7 @@ async function refreshWorkFolders(options = {}) {
     destroyGraphController();
     state.files = [];
     state.selectedStartProjectFileName = '';
+    state.fileReplacements = {};
     state.graph = null;
     state.graphViewport = null;
     state.graphSearchTerm = '';
@@ -1081,6 +1114,7 @@ async function processCurrentProject(showSuccessMessage = true) {
     return;
   }
 
+  persistCurrentFileReplacements();
   const payload = await api.processProjects(state.selectedWorkFolderId, state.selectedStartProjectFileName, state.csrfToken, state.fileReplacements);
   state.graph = applyStoredGraphState(payload.graph);
 
@@ -1109,6 +1143,7 @@ async function replaceMissingFileWithUploaded(missingFileName, sourceFileId) {
       ...state.fileReplacements,
       [missingFileName]: sourceFile.originalName,
     };
+    persistCurrentFileReplacements();
     await processCurrentProject(false);
     setFlash('success', `${missingFileName} will be treated as ${sourceFile.originalName}.`);
   });
@@ -1134,6 +1169,12 @@ function uploadMissingFileReplacement(missingFileName) {
     runAction(`Uploading ${missingFileName}…`, async () => {
       const payload = await api.uploadReplacementFile(state.selectedWorkFolderId, file, missingFileName, state.csrfToken);
       applyFilesPayload(payload, false);
+      const nextFileReplacements = {
+        ...state.fileReplacements,
+      };
+      delete nextFileReplacements[missingFileName];
+      state.fileReplacements = nextFileReplacements;
+      persistCurrentFileReplacements();
       await processCurrentProject(false);
       setFlash('success', `Uploaded replacement for ${missingFileName}.`);
     });
@@ -1301,12 +1342,13 @@ appRoot.addEventListener('click', (event) => {
     }
 
     runAction('Deleting work folder…', async () => {
-      clearGraphLayout(getGraphContext());
+      clearSavedGraphState(getGraphContext());
       const payload = await api.deleteWorkFolder(selectedFolder.id, state.csrfToken);
       state.workFolders = Array.isArray(payload.workFolders) ? payload.workFolders : [];
       state.selectedWorkFolderId = payload.defaultWorkFolderId || null;
       state.files = [];
       state.selectedStartProjectFileName = '';
+      state.fileReplacements = {};
       state.graph = null;
       state.graphSearchTerm = '';
       state.graphFilterOnly = false;
@@ -1455,6 +1497,7 @@ appRoot.addEventListener('change', (event) => {
       if (!state.selectedWorkFolderId) {
         state.files = [];
         state.selectedStartProjectFileName = '';
+        state.fileReplacements = {};
         state.graph = null;
         state.graphViewport = null;
         state.graphSearchTerm = '';
@@ -1469,6 +1512,7 @@ appRoot.addEventListener('change', (event) => {
 
   if (target.id === 'start-project-select') {
     state.selectedStartProjectFileName = target.value || '';
+    loadSavedFileReplacementsForCurrentContext();
     state.graph = null;
     state.graphViewport = null;
     state.graphSearchTerm = '';

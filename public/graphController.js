@@ -379,7 +379,7 @@ function buildNodeCardMarkup(node, options = {}) {
     ? uploadedFiles.map((file) => `<option value="${escapeHtml(String(file.id))}">${escapeHtml(file.originalName)}</option>`).join('')
     : '<option value="">No uploaded files available</option>';
   const missingFileName = node.type === 'project' ? node.title : node.subtitle;
-  const missingControls = node.status === 'missing'
+  const missingControls = node.status === 'missing' && node.type === 'project'
     ? `
       <div class="graph-node-card__actions" data-graph-control="true">
         <select data-action="replace-missing-select" data-missing-file-name="${escapeHtml(missingFileName)}" ${uploadedFiles.length ? '' : 'disabled'}>

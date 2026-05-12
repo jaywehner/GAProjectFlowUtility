@@ -357,6 +357,14 @@ body.is-resizing-sidebar * {
   flex-wrap: wrap;
 }
 
+.sidebar-section__footer {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
 .hero-panel {
   padding: 2rem;
   display: grid;
@@ -715,60 +723,104 @@ button:disabled {
 
 .graph-toolbar {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 1.5rem;
-  align-items: center;
-  padding: 0.75rem 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  grid-template-columns: minmax(300px, 1.3fr) auto minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: stretch;
+  margin-bottom: 0.75rem;
+}
+
+.graph-toolbar__searchbar,
+.graph-toolbar__toggle,
+.graph-toolbar__group {
+  min-height: 3.3rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
   background: var(--surface-muted);
 }
 
-.graph-toolbar__section {
-  display: flex;
+.graph-toolbar__searchbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.75rem;
-}
-
-.graph-toolbar__search {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  gap: 0.9rem;
   min-width: 0;
+  padding: 0.75rem 1rem;
 }
 
-.graph-toolbar__search .field {
-  flex: 1;
-  min-width: 240px;
+.graph-toolbar__searchbar span {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  white-space: nowrap;
 }
 
-.graph-toolbar__zoom {
+.graph-toolbar__searchbar input {
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.graph-toolbar__searchbar input:focus {
+  border: 0;
+  box-shadow: none;
+}
+
+.graph-toolbar__toggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: 0.75rem 1rem;
+  color: var(--text-soft);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.graph-toolbar__export {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.graph-toolbar__toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
 }
 
-.graph-toolbar__actions {
+.graph-toolbar__group {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.45rem;
 }
 
-.checkbox-row--compact {
-  padding: 0.7rem 0.9rem;
+.graph-toolbar__group .pill {
+  white-space: nowrap;
+}
+
+.graph-toolbar__group .button {
+  min-height: 2.4rem;
+}
+
+.graph-toolbar__group--export {
+  justify-content: flex-end;
 }
 
 .graph-hint {
   margin-bottom: 0.65rem;
   color: var(--text-soft);
+}
+
+@media (max-width: 1400px) {
+  .graph-toolbar {
+    grid-template-columns: minmax(280px, 1fr) auto;
+  }
+
+  .graph-toolbar__group,
+  .graph-toolbar__group--export {
+    grid-column: 1 / -1;
+  }
 }
 
 .graph-container {
@@ -1062,10 +1114,11 @@ button:disabled {
 
   .graph-toolbar {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: 0.85rem;
   }
 
-  .graph-toolbar__section {
+  .graph-toolbar__group,
+  .graph-toolbar__group--export {
     justify-content: flex-start;
   }
 
@@ -1113,8 +1166,15 @@ button:disabled {
   .file-list__summary,
   .file-list__bulk-actions,
   .stats-row--horizontal,
-  .graph-toolbar__section {
+  .graph-toolbar__toggle,
+  .graph-toolbar__group,
+  .graph-toolbar__group--export {
     justify-content: flex-start;
+  }
+
+  .graph-toolbar__searchbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .file-list__summary span {

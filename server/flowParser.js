@@ -159,15 +159,18 @@ function createGraphBuilder(fileMap, options = {}) {
   const fileReplacements = options.fileReplacements instanceof Map ? options.fileReplacements : new Map();
 
   function loadProject(fileName) {
-    const replacementFileName = fileReplacements.get(normalizeFileNameKey(fileName));
-    const resolvedFileName = replacementFileName || fileName;
-    const fileKey = normalizeFileNameKey(resolvedFileName);
+    const requestedFileKey = normalizeFileNameKey(fileName);
+    const replacementFileName = fileReplacements.get(requestedFileKey);
+    const resolvedFileName = fileMap.has(requestedFileKey)
+      ? fileName
+      : (replacementFileName || fileName);
+    const resolvedFileKey = normalizeFileNameKey(resolvedFileName);
 
-    if (parsedProjectCache.has(fileKey)) {
-      return parsedProjectCache.get(fileKey);
+    if (parsedProjectCache.has(resolvedFileKey)) {
+      return parsedProjectCache.get(resolvedFileKey);
     }
 
-    const fileEntry = fileMap.get(fileKey);
+    const fileEntry = fileMap.get(resolvedFileKey);
 
     if (!fileEntry) {
       const missingResult = {
@@ -175,7 +178,7 @@ function createGraphBuilder(fileMap, options = {}) {
         missing: true,
         error: 'Project file not found',
       };
-      parsedProjectCache.set(fileKey, missingResult);
+      parsedProjectCache.set(resolvedFileKey, missingResult);
       return missingResult;
     }
 
@@ -185,7 +188,7 @@ function createGraphBuilder(fileMap, options = {}) {
         missing: false,
         parsed,
       };
-      parsedProjectCache.set(fileKey, success);
+      parsedProjectCache.set(resolvedFileKey, success);
       return success;
     } catch (error) {
       const failed = {
@@ -193,7 +196,7 @@ function createGraphBuilder(fileMap, options = {}) {
         missing: true,
         error: `Invalid XML: ${error.message}`,
       };
-      parsedProjectCache.set(fileKey, failed);
+      parsedProjectCache.set(resolvedFileKey, failed);
       return failed;
     }
   }
@@ -333,17 +336,19 @@ function createGraphBuilder(fileMap, options = {}) {
 
   function processProject(fileName, sourceNodeId, sourceLabel, options = {}) {
     const projectState = loadProject(fileName);
-    const replacementFileName = fileReplacements.get(normalizeFileNameKey(fileName));
+    const replacementFileName = !fileMap.has(normalizeFileNameKey(fileName))
+      ? fileReplacements.get(normalizeFileNameKey(fileName))
+      : '';
     const mainModuleName = projectState.missing ? 'Main' : (projectState.parsed.mainModuleName || 'Main');
 
     if (!options.isRoot && !projectState.missing && !replacementFileName) {
-      const moduleNode = ensureModuleNode(projectState.parsed.fileName, mainModuleName);
+      const moduleNode = ensureModuleNode(fileName, mainModuleName);
 
       if (sourceNodeId) {
         addEdge(sourceNodeId, moduleNode.id, sourceLabel || 'callProject');
       }
 
-      processModule(projectState.parsed.fileName, mainModuleName, moduleNode.id);
+      processModule(fileName, mainModuleName, moduleNode.id);
       return moduleNode;
     }
 
@@ -363,9 +368,9 @@ function createGraphBuilder(fileMap, options = {}) {
       return projectNode;
     }
 
-    const moduleNode = ensureModuleNode(projectState.parsed.fileName, mainModuleName);
+    const moduleNode = ensureModuleNode(fileName, mainModuleName);
     addEdge(projectNode.id, moduleNode.id, 'mainModule');
-    processModule(projectState.parsed.fileName, mainModuleName, moduleNode.id);
+    processModule(fileName, mainModuleName, moduleNode.id);
     return projectNode;
   }
 
@@ -391,9 +396,9 @@ function createGraphBuilder(fileMap, options = {}) {
 
     for (const call of module.calls) {
       if (call.type === 'module') {
-        const childModule = ensureModuleNode(projectState.parsed.fileName, call.moduleName);
+        const childModule = ensureModuleNode(fileName, call.moduleName);
         addEdge(moduleNode.id, childModule.id, call.label || 'callModule');
-        processModule(projectState.parsed.fileName, call.moduleName, childModule.id);
+        processModule(fileName, call.moduleName, childModule.id);
       }
 
       if (call.type === 'project') {
