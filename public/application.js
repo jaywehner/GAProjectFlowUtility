@@ -33,6 +33,7 @@ const state = {
   selectedWorkFolderId: null,
   files: [],
   selectedStartProjectFileName: '',
+  fileReplacements: {},
   graph: null,
   graphSearchTerm: '',
   graphFilterOnly: false,
@@ -643,6 +644,24 @@ function renderDashboardView() {
           <section class="panel sidebar-section">
             <div class="panel-header">
               <div>
+                <h2>Process projects</h2>
+                <p>Choose the starting project, then generate the connected cards and lines.</p>
+              </div>
+            </div>
+            <label class="field">
+              <span>Starting project</span>
+              <select id="start-project-select" ${disabledAttr(!state.files.length)}>
+                ${renderStartProjectOptions()}
+              </select>
+            </label>
+            <button type="button" class="button button--primary button--block" data-action="process-projects" ${disabledAttr(!canProcess)}>
+              Process projects
+            </button>
+          </section>
+
+          <section class="panel sidebar-section">
+            <div class="panel-header">
+              <div>
                 <h2>Work folders</h2>
                 <p>Create a folder, then upload related project files into it.</p>
               </div>
@@ -687,24 +706,6 @@ function renderDashboardView() {
               </button>
             </div>
             ${renderFileList()}
-          </section>
-
-          <section class="panel sidebar-section">
-            <div class="panel-header">
-              <div>
-                <h2>Process projects</h2>
-                <p>Choose the starting project, then generate the connected cards and lines.</p>
-              </div>
-            </div>
-            <label class="field">
-              <span>Starting project</span>
-              <select id="start-project-select" ${disabledAttr(!state.files.length)}>
-                ${renderStartProjectOptions()}
-              </select>
-            </label>
-            <button type="button" class="button button--primary button--block" data-action="process-projects" ${disabledAttr(!canProcess)}>
-              Process projects
-            </button>
           </section>
         </aside>
 
@@ -1023,6 +1024,8 @@ function applyFilesPayload(payload, clearGraph = true) {
   state.files = nextFiles;
 
   const fileNames = new Set(nextFiles.map((file) => file.originalName));
+  state.fileReplacements = Object.fromEntries(Object.entries(state.fileReplacements).filter(([, replacementFileName]) => fileNames.has(replacementFileName)));
+
   if (!fileNames.has(state.selectedStartProjectFileName)) {
     state.selectedStartProjectFileName = payload.defaultStartProjectFileName || nextFiles[0]?.originalName || '';
   }
@@ -1078,7 +1081,7 @@ async function processCurrentProject(showSuccessMessage = true) {
     return;
   }
 
-  const payload = await api.processProjects(state.selectedWorkFolderId, state.selectedStartProjectFileName, state.csrfToken);
+  const payload = await api.processProjects(state.selectedWorkFolderId, state.selectedStartProjectFileName, state.csrfToken, state.fileReplacements);
   state.graph = applyStoredGraphState(payload.graph);
 
   if (showSuccessMessage) {
@@ -1093,11 +1096,21 @@ async function replaceMissingFileWithUploaded(missingFileName, sourceFileId) {
     return;
   }
 
+  const sourceFile = state.files.find((file) => Number(file.id) === Number(sourceFileId));
+
+  if (!sourceFile) {
+    setFlash('error', 'Selected replacement file was not found.');
+    renderApp();
+    return;
+  }
+
   runAction(`Replacing ${missingFileName}…`, async () => {
-    const payload = await api.replaceMissingFile(state.selectedWorkFolderId, missingFileName, sourceFileId, state.csrfToken);
-    applyFilesPayload(payload, false);
+    state.fileReplacements = {
+      ...state.fileReplacements,
+      [missingFileName]: sourceFile.originalName,
+    };
     await processCurrentProject(false);
-    setFlash('success', `Replaced ${missingFileName}.`);
+    setFlash('success', `${missingFileName} will be treated as ${sourceFile.originalName}.`);
   });
 }
 

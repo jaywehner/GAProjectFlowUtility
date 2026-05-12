@@ -149,16 +149,19 @@ function collectProjectFileNameCandidates(projectPath, projectFileName) {
   return candidates;
 }
 
-function createGraphBuilder(fileMap) {
+function createGraphBuilder(fileMap, options = {}) {
   const nodes = [];
   const edges = [];
   const nodeMap = new Map();
   const edgeSet = new Set();
   const parsedProjectCache = new Map();
   const uploadedFiles = Array.from(fileMap.values());
+  const fileReplacements = options.fileReplacements instanceof Map ? options.fileReplacements : new Map();
 
   function loadProject(fileName) {
-    const fileKey = normalizeFileNameKey(fileName);
+    const replacementFileName = fileReplacements.get(normalizeFileNameKey(fileName));
+    const resolvedFileName = replacementFileName || fileName;
+    const fileKey = normalizeFileNameKey(resolvedFileName);
 
     if (parsedProjectCache.has(fileKey)) {
       return parsedProjectCache.get(fileKey);
@@ -642,8 +645,8 @@ function createGraphBuilder(fileMap) {
   };
 }
 
-function buildFlowGraph(startProjectFileName, fileMap) {
-  const builder = createGraphBuilder(fileMap);
+function buildFlowGraph(startProjectFileName, fileMap, options = {}) {
+  const builder = createGraphBuilder(fileMap, options);
   const rootProject = builder.processProject(startProjectFileName, null, null, { isRoot: true });
   return builder.finalize(rootProject.id);
 }

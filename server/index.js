@@ -16,6 +16,7 @@ const {
 } = require('./config');
 const {
   safeTrim,
+  normalizeFileNameKey,
   validateUsername,
   validateFolderName,
   isXmlFileName,
@@ -791,12 +792,28 @@ app.post('/api/work-folders/:workFolderId/process', requireAuth, requirePassword
 
   const fileMap = getFolderFileMap(folder.id);
 
+  const fileReplacements = new Map();
+  const rawReplacements = req.body.fileReplacements && typeof req.body.fileReplacements === 'object' ? req.body.fileReplacements : {};
+
+  for (const [missingFileName, replacementFileName] of Object.entries(rawReplacements)) {
+    const cleanMissingFileName = safeTrim(missingFileName);
+    const cleanReplacementFileName = safeTrim(replacementFileName);
+
+    if (!isXmlFileName(cleanMissingFileName) || !isXmlFileName(cleanReplacementFileName)) {
+      continue;
+    }
+
+    if (fileMap.has(normalizeFileNameKey(cleanReplacementFileName))) {
+      fileReplacements.set(normalizeFileNameKey(cleanMissingFileName), cleanReplacementFileName);
+    }
+  }
+
   if (fileMap.size === 0) {
     res.status(400).json({ error: 'Upload one or more XML files before processing.' });
     return;
   }
 
-  const graph = buildFlowGraph(startProjectFileName, fileMap);
+  const graph = buildFlowGraph(startProjectFileName, fileMap, { fileReplacements });
 
   res.json({
     workFolder: folder,

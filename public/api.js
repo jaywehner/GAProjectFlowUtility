@@ -128,11 +128,11 @@ export const api = {
       body: { missingFileName, sourceFileId },
     });
   },
-  processProjects(workFolderId, startProjectFileName, csrfToken) {
+  processProjects(workFolderId, startProjectFileName, csrfToken, fileReplacements = {}) {
     return request(`/api/work-folders/${workFolderId}/process`, {
       method: 'POST',
       csrfToken,
-      body: { startProjectFileName },
+      body: { startProjectFileName, fileReplacements },
     });
   },
   deleteFile(workFolderId, fileId, csrfToken) {

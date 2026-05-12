@@ -1,7 +1,7 @@
 import { downloadBlob, svgToPdfBlob, svgToPngBlob } from './exportUtils.js';
 
 const CARD_WIDTH = 272;
-const CARD_HEIGHT = 214;
+const CARD_HEIGHT = 248;
 const GRAPH_PADDING = 120;
 const FIT_PADDING = 56;
 const INITIAL_FIT_MIN_ZOOM = 0.6;
