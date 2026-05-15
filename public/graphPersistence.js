@@ -6,6 +6,7 @@ function createEmptyEntry() {
     positions: {},
     viewport: null,
     fileReplacements: {},
+    missingModuleNotes: {},
   };
 }
 
@@ -17,6 +18,16 @@ function sanitizeFileReplacements(fileReplacements) {
   return Object.fromEntries(Object.entries(fileReplacements)
     .map(([missingFileName, replacementFileName]) => [String(missingFileName || '').trim(), String(replacementFileName || '').trim()])
     .filter(([missingFileName, replacementFileName]) => missingFileName && replacementFileName));
+}
+
+function sanitizeMissingModuleNotes(missingModuleNotes) {
+  if (!missingModuleNotes || typeof missingModuleNotes !== 'object' || Array.isArray(missingModuleNotes)) {
+    return {};
+  }
+
+  return Object.fromEntries(Object.entries(missingModuleNotes)
+    .map(([nodeId, noteText]) => [String(nodeId || '').trim(), String(noteText || '').trim()])
+    .filter(([nodeId, noteText]) => nodeId && noteText));
 }
 
 function readEntry(key) {
@@ -37,6 +48,7 @@ function readEntry(key) {
     positions: entry && entry.positions && typeof entry.positions === 'object' ? entry.positions : {},
     viewport,
     fileReplacements: sanitizeFileReplacements(entry && entry.fileReplacements),
+    missingModuleNotes: sanitizeMissingModuleNotes(entry && entry.missingModuleNotes),
   };
 }
 
@@ -97,6 +109,11 @@ export function getSavedGraphLayout(context) {
 export function getSavedFileReplacements(context) {
   const key = buildGraphLayoutKey(context);
   return readEntry(key).fileReplacements;
+}
+
+export function getSavedMissingModuleNotes(context) {
+  const key = buildGraphLayoutKey(context);
+  return readEntry(key).missingModuleNotes;
 }
 
 export function applySavedGraphLayout(graph, context) {
@@ -167,7 +184,27 @@ export function saveFileReplacements(context, fileReplacements) {
   const nextEntry = readEntry(key);
   nextEntry.fileReplacements = sanitizeFileReplacements(fileReplacements);
 
-  if (!Object.keys(nextEntry.positions).length && !nextEntry.viewport && !Object.keys(nextEntry.fileReplacements).length) {
+  if (!Object.keys(nextEntry.positions).length && !nextEntry.viewport && !Object.keys(nextEntry.fileReplacements).length && !Object.keys(nextEntry.missingModuleNotes).length) {
+    delete store[key];
+  } else {
+    store[key] = nextEntry;
+  }
+
+  writeStore(store);
+}
+
+export function saveMissingModuleNotes(context, missingModuleNotes) {
+  const key = buildGraphLayoutKey(context);
+
+  if (!key) {
+    return;
+  }
+
+  const store = readStore();
+  const nextEntry = readEntry(key);
+  nextEntry.missingModuleNotes = sanitizeMissingModuleNotes(missingModuleNotes);
+
+  if (!Object.keys(nextEntry.positions).length && !nextEntry.viewport && !Object.keys(nextEntry.fileReplacements).length && !Object.keys(nextEntry.missingModuleNotes).length) {
     delete store[key];
   } else {
     store[key] = nextEntry;
@@ -186,7 +223,7 @@ export function clearGraphLayout(context) {
   const store = readStore();
   const entry = readEntry(key);
 
-  if (!Object.keys(entry.fileReplacements).length) {
+  if (!Object.keys(entry.fileReplacements).length && !Object.keys(entry.missingModuleNotes).length) {
     delete store[key];
     writeStore(store);
     return;
@@ -195,6 +232,7 @@ export function clearGraphLayout(context) {
   store[key] = {
     ...createEmptyEntry(),
     fileReplacements: entry.fileReplacements,
+    missingModuleNotes: entry.missingModuleNotes,
   };
   writeStore(store);
 }

@@ -1,7 +1,7 @@
 import { downloadBlob, svgToPdfBlob, svgToPngBlob } from './exportUtils.js';
 
 const CARD_WIDTH = 272;
-const CARD_HEIGHT = 248;
+const CARD_HEIGHT = 312;
 const GRAPH_PADDING = 120;
 const FIT_PADDING = 56;
 const INITIAL_FIT_MIN_ZOOM = 0.6;
@@ -379,7 +379,7 @@ function buildNodeCardMarkup(node, options = {}) {
     ? uploadedFiles.map((file) => `<option value="${escapeHtml(String(file.id))}">${escapeHtml(file.originalName)}</option>`).join('')
     : '<option value="">No uploaded files available</option>';
   const missingFileName = node.type === 'project' ? node.title : node.subtitle;
-  const missingControls = node.status === 'missing' && node.type === 'project'
+  const missingProjectControls = node.status === 'missing' && node.type === 'project'
     ? `
       <div class="graph-node-card__actions" data-graph-control="true">
         <select data-action="replace-missing-select" data-missing-file-name="${escapeHtml(missingFileName)}" ${uploadedFiles.length ? '' : 'disabled'}>
@@ -388,6 +388,14 @@ function buildNodeCardMarkup(node, options = {}) {
         </select>
         <button type="button" data-action="upload-missing-file" data-missing-file-name="${escapeHtml(missingFileName)}">Upload replacement</button>
       </div>
+    `
+    : '';
+  const missingModuleNote = node.status === 'missing' && node.type === 'module'
+    ? `
+      <label class="graph-node-card__note" data-graph-control="true">
+        <span>Why is this missing?</span>
+        <textarea data-action="missing-module-note" data-note-node-id="${escapeHtml(node.id)}" rows="4" placeholder="Explain why this module is missing from the flow.">${escapeHtml(options.missingModuleNote || '')}</textarea>
+      </label>
     `
     : '';
 
@@ -400,7 +408,8 @@ function buildNodeCardMarkup(node, options = {}) {
       <h3>${escapeHtml(node.title)}</h3>
       <p class="graph-node-card__subtitle">${escapeHtml(node.subtitle)}</p>
       <p class="graph-node-card__body">${escapeHtml(node.body)}</p>
-      ${missingControls}
+      ${missingProjectControls}
+      ${missingModuleNote}
     </div>
   `;
 }
@@ -539,15 +548,20 @@ class GraphController {
     this.filterOnly = Boolean(options.filterOnly);
     this.viewport = options.viewport || null;
     this.files = Array.isArray(options.files) ? options.files : [];
+    this.missingModuleNotes = options.missingModuleNotes && typeof options.missingModuleNotes === 'object' && !Array.isArray(options.missingModuleNotes)
+      ? options.missingModuleNotes
+      : {};
     this.onNodePositionChange = options.onNodePositionChange || (() => {});
     this.onViewportChange = options.onViewportChange || (() => {});
     this.onMissingFileSelect = options.onMissingFileSelect || (() => {});
     this.onMissingFileUpload = options.onMissingFileUpload || (() => {});
+    this.onMissingModuleNoteChange = options.onMissingModuleNoteChange || (() => {});
     this.hasFitted = false;
     this.dragState = null;
     this.pointerMoveHandler = this.handlePointerMove.bind(this);
     this.pointerUpHandler = this.handlePointerUp.bind(this);
     this.changeHandler = this.handleChange.bind(this);
+    this.inputHandler = this.handleInput.bind(this);
     this.wheelHandler = this.handleWheel.bind(this);
     this.pointerDownHandler = this.handlePointerDown.bind(this);
     this.resizeObserver = new ResizeObserver(() => {
@@ -740,6 +754,36 @@ class GraphController {
       sourceFileId: replacementSelect.value,
     });
     replacementSelect.value = '';
+  }
+
+  handleInput(event) {
+    const noteInput = event.target.closest('[data-action="missing-module-note"]');
+
+    if (!noteInput) {
+      return;
+    }
+
+    const nodeId = noteInput.getAttribute('data-note-node-id');
+    const noteText = noteInput.value || '';
+    const normalizedNoteText = noteText.trim();
+
+    if (!normalizedNoteText) {
+      const nextMissingModuleNotes = {
+        ...this.missingModuleNotes,
+      };
+      delete nextMissingModuleNotes[nodeId];
+      this.missingModuleNotes = nextMissingModuleNotes;
+    } else {
+      this.missingModuleNotes = {
+        ...this.missingModuleNotes,
+        [nodeId]: noteText,
+      };
+    }
+
+    this.onMissingModuleNoteChange({
+      nodeId,
+      noteText,
+    });
   }
 
   handlePointerDown(event) {
@@ -952,7 +996,7 @@ class GraphController {
       return `
         <g class="graph-node ${matched ? 'is-matched' : ''} ${dimmed ? 'is-dimmed' : ''}" data-node-id="${escapeHtml(node.id)}">
           <foreignObject x="${node.position.x}" y="${node.position.y}" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" data-node-id="${escapeHtml(node.id)}">
-            ${buildNodeCardMarkup(node, { matched, dimmed, files: this.files })}
+            ${buildNodeCardMarkup(node, { matched, dimmed, files: this.files, missingModuleNote: this.missingModuleNotes[node.id] || '' })}
           </foreignObject>
           ${inputPortMarkup}
           ${outputPortMarkup}
@@ -977,6 +1021,9 @@ class GraphController {
     this.svgElement.addEventListener('change', this.changeHandler);
     this.container.querySelectorAll('[data-action="replace-missing-select"]').forEach((replacementSelect) => {
       replacementSelect.addEventListener('change', this.changeHandler);
+    });
+    this.container.querySelectorAll('[data-action="missing-module-note"]').forEach((noteInput) => {
+      noteInput.addEventListener('input', this.inputHandler);
     });
   }
 }

@@ -1,10 +1,10 @@
 const { DOMParser } = require('@xmldom/xmldom');
 const { extractProjectFileName, normalizeFileNameKey, safeTrim } = require('./utils');
 
-const LAYOUT_PADDING_X = 60;
-const LAYOUT_PADDING_Y = 60;
-const LAYOUT_COLUMN_GAP = 480;
-const LAYOUT_ROW_GAP = 240;
+const LAYOUT_PADDING_X = 84;
+const LAYOUT_PADDING_Y = 84;
+const LAYOUT_COLUMN_GAP = 580;
+const LAYOUT_ROW_GAP = 380;
 
 function average(values) {
   if (!Array.isArray(values) || values.length === 0) {

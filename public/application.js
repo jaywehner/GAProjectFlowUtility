@@ -5,9 +5,11 @@ import {
   clearGraphLayout,
   clearSavedGraphState,
   getSavedFileReplacements,
+  getSavedMissingModuleNotes,
   getSavedGraphLayout,
   saveGraphNodePosition,
   saveFileReplacements,
+  saveMissingModuleNotes,
   saveGraphViewport,
 } from './graphPersistence.js';
 
@@ -37,6 +39,7 @@ const state = {
   files: [],
   selectedStartProjectFileName: '',
   fileReplacements: {},
+  missingModuleNotes: {},
   graph: null,
   graphSearchTerm: '',
   graphFilterOnly: false,
@@ -244,6 +247,7 @@ function resetWorkspaceState() {
   state.files = [];
   state.selectedStartProjectFileName = '';
   state.fileReplacements = {};
+  state.missingModuleNotes = {};
   state.graph = null;
   state.graphSearchTerm = '';
   state.graphFilterOnly = false;
@@ -341,6 +345,16 @@ function sanitizeFileReplacementsForFiles(fileReplacements, files = state.files)
     .filter(([missingFileName, replacementFileName]) => missingFileName && replacementFileName && availableFileNames.has(replacementFileName)));
 }
 
+function sanitizeMissingModuleNotes(missingModuleNotes) {
+  if (!missingModuleNotes || typeof missingModuleNotes !== 'object' || Array.isArray(missingModuleNotes)) {
+    return {};
+  }
+
+  return Object.fromEntries(Object.entries(missingModuleNotes)
+    .map(([nodeId, noteText]) => [String(nodeId || '').trim(), String(noteText || '').trim()])
+    .filter(([nodeId, noteText]) => nodeId && noteText));
+}
+
 function loadSavedFileReplacementsForCurrentContext() {
   if (!state.selectedStartProjectFileName) {
     state.fileReplacements = {};
@@ -352,6 +366,17 @@ function loadSavedFileReplacementsForCurrentContext() {
   saveFileReplacements(getGraphContext(), nextFileReplacements);
 }
 
+function loadSavedMissingModuleNotesForCurrentContext() {
+  if (!state.selectedStartProjectFileName) {
+    state.missingModuleNotes = {};
+    return;
+  }
+
+  const nextMissingModuleNotes = sanitizeMissingModuleNotes(getSavedMissingModuleNotes(getGraphContext()));
+  state.missingModuleNotes = nextMissingModuleNotes;
+  saveMissingModuleNotes(getGraphContext(), nextMissingModuleNotes);
+}
+
 function persistCurrentFileReplacements() {
   state.fileReplacements = sanitizeFileReplacementsForFiles(state.fileReplacements, state.files);
 
@@ -361,6 +386,42 @@ function persistCurrentFileReplacements() {
   }
 
   saveFileReplacements(getGraphContext(), state.fileReplacements);
+}
+
+function persistCurrentMissingModuleNotes() {
+  state.missingModuleNotes = sanitizeMissingModuleNotes(state.missingModuleNotes);
+
+  if (!state.selectedStartProjectFileName) {
+    state.missingModuleNotes = {};
+    return;
+  }
+
+  saveMissingModuleNotes(getGraphContext(), state.missingModuleNotes);
+}
+
+function updateMissingModuleNote(nodeId, noteText) {
+  const normalizedNodeId = String(nodeId || '').trim();
+
+  if (!normalizedNodeId) {
+    return;
+  }
+
+  const normalizedNoteText = String(noteText || '').trim();
+
+  if (!normalizedNoteText) {
+    const nextMissingModuleNotes = {
+      ...state.missingModuleNotes,
+    };
+    delete nextMissingModuleNotes[normalizedNodeId];
+    state.missingModuleNotes = nextMissingModuleNotes;
+  } else {
+    state.missingModuleNotes = {
+      ...state.missingModuleNotes,
+      [normalizedNodeId]: normalizedNoteText,
+    };
+  }
+
+  persistCurrentMissingModuleNotes();
 }
 
 function applyStoredGraphState(graph) {
@@ -979,6 +1040,7 @@ function mountCurrentGraph() {
     filterOnly: state.graphFilterOnly,
     viewport: state.graphViewport,
     files: state.files,
+    missingModuleNotes: state.missingModuleNotes,
     onNodePositionChange(nodeId, position) {
       updateGraphNodePosition(nodeId, position);
     },
@@ -990,6 +1052,9 @@ function mountCurrentGraph() {
     },
     onMissingFileUpload({ missingFileName }) {
       uploadMissingFileReplacement(missingFileName);
+    },
+    onMissingModuleNoteChange({ nodeId, noteText }) {
+      updateMissingModuleNote(nodeId, noteText);
     },
   });
 }
@@ -1060,7 +1125,8 @@ function applyFilesPayload(payload, clearGraph = true) {
     state.selectedStartProjectFileName = payload.defaultStartProjectFileName || nextFiles[0]?.originalName || '';
   }
 
-   loadSavedFileReplacementsForCurrentContext();
+  loadSavedFileReplacementsForCurrentContext();
+  loadSavedMissingModuleNotesForCurrentContext();
 
   if (clearGraph) {
     destroyGraphController();
@@ -1096,6 +1162,7 @@ async function refreshWorkFolders(options = {}) {
     state.files = [];
     state.selectedStartProjectFileName = '';
     state.fileReplacements = {};
+    state.missingModuleNotes = {};
     state.graph = null;
     state.graphViewport = null;
     state.graphSearchTerm = '';
@@ -1115,6 +1182,7 @@ async function processCurrentProject(showSuccessMessage = true) {
   }
 
   persistCurrentFileReplacements();
+  persistCurrentMissingModuleNotes();
   const payload = await api.processProjects(state.selectedWorkFolderId, state.selectedStartProjectFileName, state.csrfToken, state.fileReplacements);
   state.graph = applyStoredGraphState(payload.graph);
 
@@ -1349,6 +1417,7 @@ appRoot.addEventListener('click', (event) => {
       state.files = [];
       state.selectedStartProjectFileName = '';
       state.fileReplacements = {};
+      state.missingModuleNotes = {};
       state.graph = null;
       state.graphSearchTerm = '';
       state.graphFilterOnly = false;
@@ -1498,6 +1567,7 @@ appRoot.addEventListener('change', (event) => {
         state.files = [];
         state.selectedStartProjectFileName = '';
         state.fileReplacements = {};
+        state.missingModuleNotes = {};
         state.graph = null;
         state.graphViewport = null;
         state.graphSearchTerm = '';
@@ -1513,6 +1583,7 @@ appRoot.addEventListener('change', (event) => {
   if (target.id === 'start-project-select') {
     state.selectedStartProjectFileName = target.value || '';
     loadSavedFileReplacementsForCurrentContext();
+    loadSavedMissingModuleNotesForCurrentContext();
     state.graph = null;
     state.graphViewport = null;
     state.graphSearchTerm = '';
